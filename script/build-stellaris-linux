@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+: "${RELEASE_VERSION:?RELEASE_VERSION must be set}"
+: "${STELLARIS_UPDATE_URL:?STELLARIS_UPDATE_URL must be set}"
+
+release_channel_file="crates/zed/RELEASE_CHANNEL"
+original_release_channel=$(<"$release_channel_file")
+restore_release_channel() {
+    printf '%s\n' "$original_release_channel" > "$release_channel_file"
+}
+trap restore_release_channel EXIT
+printf 'stable\n' > "$release_channel_file"
+
+version_info=$(rustc --version --verbose)
+host_line=$(printf '%s\n' "$version_info" | grep '^host:')
+target_triple=${host_line#*: }
+
+if [ "$target_triple" != "x86_64-unknown-linux-gnu" ]; then
+    echo "Error: Stellaris Linux releases must be built for x86_64-unknown-linux-gnu. Got ${target_triple}."
+    exit 1
+fi
+
+export ZED_BUNDLE=true
+export ZED_UPDATE_URL="$STELLARIS_UPDATE_URL"
+export CC="${CC:-clang}"
+
+if [ -z "${ZED_COMMIT_SHA:-}" ]; then
+    ZED_COMMIT_SHA=$(git rev-parse HEAD)
+    export ZED_COMMIT_SHA
+fi
+
+echo "Building Stellaris ${RELEASE_VERSION} for ${target_triple}"
+cargo --config .cargo/bundle-config.toml build --release --package zed --package cli --target "$target_triple"

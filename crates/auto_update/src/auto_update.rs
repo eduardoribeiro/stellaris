@@ -1,3 +1,5 @@
+mod stellaris_update;
+
 use anyhow::{Context as _, Result};
 use client::Client;
 use db::kvp::KeyValueStore;
@@ -279,7 +281,9 @@ pub fn init(client: Arc<Client>, cx: &mut App) {
         let updater = AutoUpdater::new(version, client, cx);
 
         let poll_for_updates = ReleaseChannel::try_global(cx)
-            .map(|channel| channel.poll_for_updates())
+            .map(|channel| {
+                channel.poll_for_updates() && stellaris_update_base_url(channel).is_some()
+            })
             .unwrap_or(false);
 
         if option_env!("ZED_UPDATE_EXPLANATION").is_none()
@@ -323,9 +327,16 @@ pub fn check(_: &Check, window: &mut Window, cx: &mut App) {
     }
 
     if !ReleaseChannel::try_global(cx)
-        .map(|channel| channel.poll_for_updates())
+        .map(|channel| channel.poll_for_updates() && stellaris_update_base_url(channel).is_some())
         .unwrap_or(false)
     {
+        drop(window.prompt(
+            gpui::PromptLevel::Info,
+            "Could not check for updates",
+            Some("Auto-updates are disabled for this build."),
+            &["OK"],
+            cx,
+        ));
         return;
     }
 
@@ -342,8 +353,28 @@ pub fn check(_: &Check, window: &mut Window, cx: &mut App) {
     }
 }
 
+pub fn stellaris_update_base_url(channel: ReleaseChannel) -> Option<&'static str> {
+    stellaris_update::update_base_url(channel)
+}
+
+pub use stellaris_update::ReleaseNotes;
+
+pub async fn fetch_release_notes(
+    http_client: Arc<HttpClientWithUrl>,
+    channel: ReleaseChannel,
+    version: String,
+) -> Result<ReleaseNotes> {
+    let api_url = stellaris_update_base_url(channel)
+        .context("no Stellaris release notes endpoint is configured for this channel")?;
+    stellaris_update::get_release_notes(http_client, api_url, channel, &version).await
+}
+
 pub fn release_notes_url(cx: &mut App) -> Option<String> {
     let release_channel = ReleaseChannel::try_global(cx)?;
+    if let Some(url) = stellaris_update::release_notes_url(release_channel) {
+        return Some(url);
+    }
+
     let url = match release_channel {
         ReleaseChannel::Stable | ReleaseChannel::Preview => {
             let auto_updater = AutoUpdater::get(cx)?;
@@ -685,6 +716,19 @@ impl AutoUpdater {
     ) -> Result<ReleaseAsset> {
         let client = this.read_with(cx, |this, _| this.client.clone());
 
+        if asset == "stellaris" {
+            let api_url = stellaris_update_base_url(release_channel)
+                .context("no Stellaris update URL is compiled into this build")?;
+            return stellaris_update::get_release_asset(
+                client.http_client(),
+                api_url,
+                release_channel,
+                os,
+                arch,
+            )
+            .await;
+        }
+
         let (system_id, metrics_id, is_staff) = if client.telemetry().metrics_enabled() {
             (
                 client.telemetry().system_id(),
@@ -757,7 +801,8 @@ impl AutoUpdater {
         });
 
         let fetched_release_data =
-            Self::get_release_asset(&this, release_channel, None, "zed", OS, ARCH, cx).await?;
+            Self::get_release_asset(&this, release_channel, None, "stellaris", OS, ARCH, cx)
+                .await?;
         let fetched_version = fetched_release_data.clone().version;
         let app_commit_sha = Ok(cx.update(|cx| AppCommitSha::try_global(cx).map(|sha| sha.full())));
         let newer_version = Self::check_if_fetched_version_is_newer(

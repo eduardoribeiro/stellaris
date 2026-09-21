@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+: "${RELEASE_VERSION:?RELEASE_VERSION must be set}"
+
+target_triple="x86_64-unknown-linux-gnu"
+target_dir="${CARGO_TARGET_DIR:-target}"
+zed_binary="${target_dir}/${target_triple}/release/zed"
+cli_binary="${target_dir}/${target_triple}/release/cli"
+
+if [ ! -f "$zed_binary" ] || [ ! -f "$cli_binary" ]; then
+    echo "Error: release binaries not found. Run script/build-stellaris-linux first."
+    exit 1
+fi
+
+strip_command=strip
+if command -v llvm-objcopy > /dev/null 2>&1; then
+    strip_command=llvm-objcopy
+fi
+"$strip_command" --strip-debug "$zed_binary"
+"$strip_command" --strip-debug "$cli_binary"
+
+temporary_directory=$(mktemp -d)
+trap 'rm -rf "$temporary_directory"' EXIT
+app_directory="${temporary_directory}/stellaris.app"
+
+mkdir -p "${app_directory}/bin" "${app_directory}/lib" "${app_directory}/libexec"
+cp "$zed_binary" "${app_directory}/libexec/stellaris-editor"
+cp "$cli_binary" "${app_directory}/bin/stellaris"
+
+ldd "$zed_binary" | cut -d' ' -f3 | \
+    grep -v '\<\(libc.so\|libgcc_s.so\|libm.so\|libpthread.so\|libdl.so\|libasound.so\)' | \
+    while read -r library; do
+        if [ -f "$library" ]; then
+            cp "$library" "${app_directory}/lib/"
+        fi
+    done
+
+mkdir -p "${app_directory}/share/icons/hicolor/512x512/apps"
+cp crates/zed/resources/app-icon.png "${app_directory}/share/icons/hicolor/512x512/apps/stellaris.png"
+mkdir -p "${app_directory}/share/icons/hicolor/1024x1024/apps"
+cp crates/zed/resources/app-icon@2x.png "${app_directory}/share/icons/hicolor/1024x1024/apps/stellaris.png"
+
+export DO_STARTUP_NOTIFY=true
+export APP_CLI=stellaris
+export APP_ICON=stellaris
+export APP_ARGS='%U'
+export APP_NAME=Stellaris
+mkdir -p "${app_directory}/share/applications"
+sed \
+    -e 's/Keywords=zed;/Keywords=stellaris;/' \
+    -e 's/x-scheme-handler\/zed/x-scheme-handler\/stellaris/' \
+    crates/zed/resources/zed.desktop.in | \
+    envsubst > "${app_directory}/share/applications/com.blutech.stellaris.desktop"
+chmod +x "${app_directory}/share/applications/com.blutech.stellaris.desktop"
+
+if [ -f assets/licenses.md ]; then
+    cp assets/licenses.md "${app_directory}/licenses.md"
+fi
+
+out_dir="${target_dir}/release"
+archive_name="Stellaris-${RELEASE_VERSION}-x86_64-linux.tar.gz"
+mkdir -p "$out_dir"
+rm -f "${out_dir}/${archive_name}"
+tar -czf "${out_dir}/${archive_name}" -C "$temporary_directory" stellaris.app
+printf 'Created Linux archive: %s\n' "${out_dir}/${archive_name}"
