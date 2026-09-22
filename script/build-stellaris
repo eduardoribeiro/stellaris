@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+: "${RELEASE_VERSION:?RELEASE_VERSION must be set}"
+: "${STELLARIS_UPDATE_URL:?STELLARIS_UPDATE_URL must be set}"
+
+release_channel_file="crates/zed/RELEASE_CHANNEL"
+original_release_channel=$(<"$release_channel_file")
+restore_release_channel() {
+    printf '%s\n' "$original_release_channel" > "$release_channel_file"
+}
+trap restore_release_channel EXIT
+printf 'stable\n' > "$release_channel_file"
+
+version_info=$(rustc --version --verbose)
+host_line=$(printf '%s\n' "$version_info" | grep '^host:')
+target_triple=${host_line#*: }
+
+if [ "$target_triple" != "aarch64-apple-darwin" ]; then
+    echo "Error: Stellaris macOS releases must be built on Apple Silicon. Got ${target_triple}."
+    exit 1
+fi
+
+cargo_bundle_version=$(cargo -q bundle --help 2>&1 | head -n 1 || true)
+if [ "$cargo_bundle_version" != "cargo-bundle v0.6.1-zed" ]; then
+    cargo install cargo-bundle --git https://github.com/zed-industries/cargo-bundle.git --branch zed-deploy
+fi
+
+export CXXFLAGS="-stdlib=libc++"
+export ZED_BUNDLE=true
+export CARGO_BUNDLE_SKIP_BUILD=true
+export ZED_UPDATE_URL="$STELLARIS_UPDATE_URL"
+
+if [ -z "${ZED_COMMIT_SHA:-}" ]; then
+    ZED_COMMIT_SHA=$(git rev-parse HEAD)
+    export ZED_COMMIT_SHA
+fi
+
+echo "Building Stellaris ${RELEASE_VERSION} for ${target_triple}"
+cargo --config .cargo/bundle-config.toml build --release --package zed --package cli --target "$target_triple"
+
+pushd crates/zed > /dev/null
+cp Cargo.toml Cargo.toml.stellaris-backup
+sed -i.bak 's/package.metadata.bundle-stable/package.metadata.bundle/' Cargo.toml
+rm -f Cargo.toml.bak
+app_path=$(cargo bundle --release --target "$target_triple" --select-workspace-root | xargs)
+mv Cargo.toml.stellaris-backup Cargo.toml
+popd > /dev/null
+
+cp "target/${target_triple}/release/cli" "${app_path}/Contents/MacOS/cli"
+printf 'Created unsigned application bundle: %s\n' "$app_path"
