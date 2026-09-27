@@ -124,8 +124,8 @@ jobs:
             artifacts/stellaris-macos-aarch64/Stellaris-*-aarch64-macos.zip
             artifacts/stellaris-linux-x86_64/Stellaris-*-x86_64-linux.tar.gz
           )
-          if gh release view "$tag" > /dev/null 2>&1; then
-            gh release upload "$tag" "${assets[@]}" --clobber
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$tag" --repo "$GITHUB_REPOSITORY" "${assets[@]}" --clobber
           else
-            gh release create "$tag" "${assets[@]}" --title "Stellaris ${tag}" --generate-notes
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" "${assets[@]}" --title "Stellaris ${tag}" --generate-notes
           fi

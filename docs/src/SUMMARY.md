@@ -4,6 +4,7 @@
 
 - [Getting Started](./getting-started.md)
 - [Installation](./installation.md)
+  - [Install Stellaris](./stellaris-installation.md)
   - [Update](./update.md)
   - [Uninstall](./uninstall.md)
 - [Troubleshooting](./troubleshooting.md)
