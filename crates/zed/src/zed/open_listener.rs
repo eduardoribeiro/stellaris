@@ -155,10 +155,13 @@ impl OpenRequest {
         }
 
         for url in request.urls {
-            let url = url
-                .strip_prefix("stellaris://")
-                .map(|path| format!("zed://{path}"))
-                .unwrap_or(url);
+            let url = if let Some(server_name) = url.strip_prefix("stellaris-cli://") {
+                format!("zed-cli://{server_name}")
+            } else {
+                url.strip_prefix("stellaris://")
+                    .map(|path| format!("zed://{path}"))
+                    .unwrap_or(url)
+            };
 
             if let Some(server_name) = url.strip_prefix("zed-cli://") {
                 this.kind = Some(OpenRequestKind::CliConnection(connect_to_cli(server_name)?));

@@ -8,10 +8,10 @@ cd "$(dirname "$0")/.."
 
 target_triple="x86_64-unknown-linux-gnu"
 target_dir="${CARGO_TARGET_DIR:-target}"
-zed_binary="${target_dir}/${target_triple}/release/zed"
+stellaris_binary="${target_dir}/${target_triple}/release/stellaris"
 cli_binary="${target_dir}/${target_triple}/release/cli"
 
-if [ ! -f "$zed_binary" ] || [ ! -f "$cli_binary" ]; then
+if [ ! -f "$stellaris_binary" ] || [ ! -f "$cli_binary" ]; then
     echo "Error: release binaries not found. Run script/build-stellaris-linux first."
     exit 1
 fi
@@ -20,7 +20,7 @@ strip_command=strip
 if command -v llvm-objcopy > /dev/null 2>&1; then
     strip_command=llvm-objcopy
 fi
-"$strip_command" --strip-debug "$zed_binary"
+"$strip_command" --strip-debug "$stellaris_binary"
 "$strip_command" --strip-debug "$cli_binary"
 
 temporary_directory=$(mktemp -d)
@@ -28,10 +28,10 @@ trap 'rm -rf "$temporary_directory"' EXIT
 app_directory="${temporary_directory}/stellaris.app"
 
 mkdir -p "${app_directory}/bin" "${app_directory}/lib" "${app_directory}/libexec"
-cp "$zed_binary" "${app_directory}/libexec/stellaris-editor"
+cp "$stellaris_binary" "${app_directory}/libexec/stellaris-editor"
 cp "$cli_binary" "${app_directory}/bin/stellaris"
 
-ldd "$zed_binary" | cut -d' ' -f3 | \
+ldd "$stellaris_binary" | cut -d' ' -f3 | \
     grep -v '\<\(libc.so\|libgcc_s.so\|libm.so\|libpthread.so\|libdl.so\|libasound.so\)' | \
     while read -r library; do
         if [ -f "$library" ]; then
