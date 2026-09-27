@@ -155,6 +155,14 @@ impl OpenRequest {
         }
 
         for url in request.urls {
+            let url = if let Some(server_name) = url.strip_prefix("stellaris-cli://") {
+                format!("zed-cli://{server_name}")
+            } else {
+                url.strip_prefix("stellaris://")
+                    .map(|path| format!("zed://{path}"))
+                    .unwrap_or(url)
+            };
+
             if let Some(server_name) = url.strip_prefix("zed-cli://") {
                 this.kind = Some(OpenRequestKind::CliConnection(connect_to_cli(server_name)?));
             } else if let Some(action_index) = url.strip_prefix("zed-dock-action://") {
@@ -1473,24 +1481,26 @@ mod tests {
     fn test_parse_agent_url(cx: &mut TestAppContext) {
         let _app_state = init_test(cx);
 
-        let request = cx.update(|cx| {
-            OpenRequest::parse(
-                RawOpenRequest {
-                    urls: vec!["zed://agent".into()],
-                    ..Default::default()
-                },
-                cx,
-            )
-            .unwrap()
-        });
+        for url in ["stellaris://agent", "zed://agent"] {
+            let request = cx.update(|cx| {
+                OpenRequest::parse(
+                    RawOpenRequest {
+                        urls: vec![url.into()],
+                        ..Default::default()
+                    },
+                    cx,
+                )
+                .unwrap()
+            });
 
-        match request.kind {
-            Some(OpenRequestKind::AgentPanel {
-                external_source_prompt,
-            }) => {
-                assert_eq!(external_source_prompt, None);
+            match request.kind {
+                Some(OpenRequestKind::AgentPanel {
+                    external_source_prompt,
+                }) => {
+                    assert_eq!(external_source_prompt, None);
+                }
+                _ => panic!("Expected AgentPanel kind"),
             }
-            _ => panic!("Expected AgentPanel kind"),
         }
     }
 

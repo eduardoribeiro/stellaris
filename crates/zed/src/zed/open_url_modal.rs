@@ -53,8 +53,11 @@ impl OpenUrlModal {
             return;
         }
 
-        // Handle zed:// URLs internally.
-        if url.starts_with("zed://") || url.starts_with("zed-cli://") {
+        // Handle application URLs internally.
+        if url.starts_with("stellaris://")
+            || url.starts_with("zed://")
+            || url.starts_with("zed-cli://")
+        {
             OpenListener::global(cx).open(RawOpenRequest {
                 urls: vec![url],
                 ..Default::default()
