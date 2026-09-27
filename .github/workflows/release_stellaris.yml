@@ -29,11 +29,10 @@ jobs:
           import sys
 
           version = os.environ["RELEASE_VERSION"]
-          semver = re.compile(
-              r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
-              r"(?:-(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?"
-              r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
-          )
+semver = re.compile(
+    r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+)
           if not semver.fullmatch(version):
               sys.exit(f"Invalid semantic version: {version!r}")
           with open("crates/zed/Cargo.toml", encoding="utf-8") as manifest:
