@@ -1,6 +1,3 @@
-> [!IMPORTANT]
-> Remove this line to confirm you've reviewed this PR before submitting.
-
 # Stellaris
 
 Stellaris is a high-performance IDE built on [Zed](https://github.com/zed-industries/zed).
@@ -21,7 +18,9 @@ Upstream Zed remains the foundation of Stellaris. Changes are designed to remain
 
 ## Installation
 
-Stellaris release builds are not available yet. Until then, build from source using Zed's platform-specific development instructions:
+When Stellaris release builds are available, they will support Apple Silicon macOS and x86_64 Linux. See [Installing Stellaris](./docs/src/stellaris-installation.md) for the supported download, installation, CLI, and update paths.
+
+For development builds or unsupported platforms, use the platform-specific development instructions:
 
 - [Building on macOS](./docs/src/development/macos.md)
 - [Building on Linux](./docs/src/development/linux.md)

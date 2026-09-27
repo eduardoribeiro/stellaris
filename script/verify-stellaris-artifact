@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [ "$#" -ne 2 ]; then
+    echo "Usage: ${0##*/} <macos|linux> <archive>" >&2
+    exit 1
+fi
+
+platform=$1
+archive=$2
+
+if [ ! -f "$archive" ]; then
+    echo "Error: archive does not exist: $archive" >&2
+    exit 1
+fi
+
+temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/stellaris-artifact.XXXXXX")
+trap 'rm -rf "$temporary_directory"' EXIT
+
+case "$platform" in
+    macos)
+        unzip -q "$archive" -d "$temporary_directory"
+        app_directory="${temporary_directory}/Stellaris.app"
+        executable_paths=(
+            "Contents/MacOS/stellaris"
+            "Contents/MacOS/cli"
+        )
+        ;;
+    linux)
+        tar -xzf "$archive" -C "$temporary_directory"
+        app_directory="${temporary_directory}/stellaris.app"
+        executable_paths=(
+            "bin/stellaris"
+            "libexec/stellaris-editor"
+        )
+        ;;
+    *)
+        echo "Error: unsupported platform: $platform" >&2
+        exit 1
+        ;;
+esac
+
+if [ ! -d "$app_directory" ]; then
+    echo "Error: expected application bundle is missing: $app_directory" >&2
+    exit 1
+fi
+
+for executable_path in "${executable_paths[@]}"; do
+    executable_path="${app_directory}/${executable_path}"
+    if [ ! -x "$executable_path" ]; then
+        echo "Error: expected executable is missing or not executable: $executable_path" >&2
+        exit 1
+    fi
+done
+
+if [ "$platform" = "linux" ]; then
+    desktop_file="${app_directory}/share/applications/com.blutech.stellaris.desktop"
+    if [ ! -f "$desktop_file" ]; then
+        echo "Error: expected desktop entry is missing: $desktop_file" >&2
+        exit 1
+    fi
+
+    grep -Fx 'Exec=stellaris %U' "$desktop_file" > /dev/null
+    grep -Fx 'MimeType=text/plain;application/x-zerosize;x-scheme-handler/stellaris;' "$desktop_file" > /dev/null
+fi
+
+printf 'Verified %s release artifact: %s\n' "$platform" "$archive"

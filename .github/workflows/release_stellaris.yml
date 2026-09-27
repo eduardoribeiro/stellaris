@@ -29,10 +29,11 @@ jobs:
           import sys
 
           version = os.environ["RELEASE_VERSION"]
-semver = re.compile(
-    r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
-    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
-)
+          semver = re.compile(
+              r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
+              r"(?:-(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?"
+              r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+          )
           if not semver.fullmatch(version):
               sys.exit(f"Invalid semantic version: {version!r}")
           with open("crates/zed/Cargo.toml", encoding="utf-8") as manifest:
@@ -66,6 +67,10 @@ semver = re.compile(
         env:
           RELEASE_VERSION: ${{ needs.validate-version.outputs.version }}
         run: script/package-stellaris
+      - name: Verify macOS release artifact
+        env:
+          RELEASE_VERSION: ${{ needs.validate-version.outputs.version }}
+        run: script/verify-stellaris-artifact macos "target/release/Stellaris-${RELEASE_VERSION}-aarch64-macos.zip"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
         with:
           name: stellaris-macos-aarch64
@@ -90,6 +95,10 @@ semver = re.compile(
         env:
           RELEASE_VERSION: ${{ needs.validate-version.outputs.version }}
         run: script/package-stellaris-linux
+      - name: Verify Linux release artifact
+        env:
+          RELEASE_VERSION: ${{ needs.validate-version.outputs.version }}
+        run: script/verify-stellaris-artifact linux "target/release/Stellaris-${RELEASE_VERSION}-x86_64-linux.tar.gz"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
         with:
           name: stellaris-linux-x86_64
