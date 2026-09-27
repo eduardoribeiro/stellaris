@@ -27,6 +27,7 @@ fi
 export ZED_BUNDLE=true
 export ZED_UPDATE_URL="$STELLARIS_UPDATE_URL"
 export CC="${CC:-clang}"
+export CXX="${CXX:-clang++}"
 
 if [ -z "${ZED_COMMIT_SHA:-}" ]; then
     ZED_COMMIT_SHA=$(git rev-parse HEAD)
