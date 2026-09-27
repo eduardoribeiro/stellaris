@@ -31,7 +31,14 @@ use walkdir::WalkDir;
 
 use std::io::IsTerminal;
 
-const URL_PREFIX: [&'static str; 5] = ["zed://", "http://", "https://", "file://", "ssh://"];
+const URL_PREFIX: [&'static str; 6] = [
+    "stellaris://",
+    "zed://",
+    "http://",
+    "https://",
+    "file://",
+    "ssh://",
+];
 
 struct Detect;
 
@@ -908,8 +915,12 @@ mod linux {
 
                 // libexec is the standard, lib/zed is for Arch (and other non-libexec distros),
                 // ./zed is for the target directory in development builds.
-                let possible_locations =
-                    ["../libexec/zed-editor", "../lib/zed/zed-editor", "./zed"];
+                let possible_locations = [
+                    "../libexec/stellaris-editor",
+                    "../libexec/zed-editor",
+                    "../lib/zed/zed-editor",
+                    "./zed",
+                ];
                 possible_locations
                     .iter()
                     .find_map(|p| dir.join(p).canonicalize().ok().filter(|path| path != &cli))

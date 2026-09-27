@@ -840,7 +840,7 @@ impl AutoUpdater {
         let installer_dir = InstallerDir::new()
             .await
             .context("Failed to create installer dir")?;
-        let target_path = Self::target_path(&installer_dir).await?;
+        let target_path = Self::target_path(&installer_dir, &fetched_release_data.url)?;
         let progress_entity = this.clone();
         let mut progress_cx = cx.clone();
         download_release(
@@ -965,13 +965,29 @@ impl AutoUpdater {
         Ok(())
     }
 
-    async fn target_path(installer_dir: &InstallerDir) -> Result<PathBuf> {
+    fn target_path(installer_dir: &InstallerDir, release_url: &str) -> Result<PathBuf> {
         let filename = match OS {
-            "macos" => anyhow::Ok("Zed.dmg"),
-            "linux" => Ok("zed.tar.gz"),
-            "windows" => Ok("Zed.exe"),
+            "macos"
+                if release_url
+                    .split('?')
+                    .next()
+                    .is_some_and(|url| url.ends_with(".zip")) =>
+            {
+                "Stellaris.zip"
+            }
+            "macos"
+                if release_url
+                    .split('?')
+                    .next()
+                    .is_some_and(|url| url.ends_with(".dmg")) =>
+            {
+                "Stellaris.dmg"
+            }
+            "macos" => anyhow::bail!("unsupported macOS release archive: {release_url}"),
+            "linux" => "stellaris.tar.gz",
+            "windows" => "Stellaris.exe",
             unsupported_os => anyhow::bail!("not supported: {unsupported_os}"),
-        }?;
+        };
 
         Ok(installer_dir.path().join(filename))
     }
@@ -1179,7 +1195,7 @@ async fn install_release_linux(
 ) -> Result<Option<PathBuf>> {
     let home_dir = PathBuf::from(env::var("HOME").context("no HOME env var set")?);
 
-    let extracted = temp_dir.path().join("zed");
+    let extracted = temp_dir.path().join("stellaris");
     fs::create_dir_all(&extracted)
         .await
         .context("failed to create directory into which to extract update")?;
@@ -1207,12 +1223,12 @@ async fn install_release_linux(
     } else {
         String::default()
     };
-    let app_folder_name = format!("zed{}.app", suffix);
+    let app_folder_name = format!("stellaris{}.app", suffix);
 
     let from = extracted.join(&app_folder_name);
     let mut to = home_dir.join(".local");
 
-    let expected_suffix = format!("{}/libexec/zed-editor", app_folder_name);
+    let expected_suffix = format!("{}/libexec/stellaris-editor", app_folder_name);
 
     if let Some(prefix) = running_app_path
         .to_str()
@@ -1241,7 +1257,7 @@ async fn install_release_linux(
 
 async fn install_release_macos(
     temp_dir: &InstallerDir,
-    downloaded_dmg: &Path,
+    downloaded_archive: &Path,
     running_app_path: PathBuf,
     background_executor: &BackgroundExecutor,
 ) -> Result<Option<PathBuf>> {
@@ -1249,13 +1265,55 @@ async fn install_release_macos(
         .file_name()
         .with_context(|| format!("invalid running app path {running_app_path:?}"))?;
 
+    if downloaded_archive.extension() == Some(OsStr::new("zip")) {
+        let extracted = temp_dir.path().join("stellaris");
+        fs::create_dir_all(&extracted)
+            .await
+            .context("failed to create directory into which to extract update")?;
+
+        let mut cmd = new_command("ditto");
+        cmd.args(["-x", "-k"])
+            .arg(downloaded_archive)
+            .arg(&extracted);
+        let output = cmd
+            .output()
+            .await
+            .with_context(|| "failed to extract: {cmd}")?;
+        anyhow::ensure!(
+            output.status.success(),
+            "failed to extract {:?} to {:?}: {:?}",
+            downloaded_archive,
+            extracted,
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let mut extracted_app_path: OsString = extracted.join(running_app_filename).into();
+        extracted_app_path.push("/");
+
+        let mut cmd = new_command("rsync");
+        cmd.args(["-av", "--delete", "--exclude", "Icon?"])
+            .arg(&extracted_app_path)
+            .arg(&running_app_path);
+        let output = cmd
+            .output()
+            .await
+            .with_context(|| "failed to rsync: {cmd}")?;
+        anyhow::ensure!(
+            output.status.success(),
+            "failed to copy app: {:?}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        return Ok(None);
+    }
+
     let mount_path = temp_dir.path().join("Zed");
     let mut mounted_app_path: OsString = mount_path.join(running_app_filename).into();
 
     mounted_app_path.push("/");
     let mut cmd = new_command("hdiutil");
     cmd.args(["attach", "-nobrowse"])
-        .arg(&downloaded_dmg)
+        .arg(downloaded_archive)
         .arg("-mountroot")
         .arg(temp_dir.path());
     let output = cmd

@@ -9,10 +9,14 @@ cd "$(dirname "$0")/.."
 
 release_channel_file="crates/zed/RELEASE_CHANNEL"
 original_release_channel=$(<"$release_channel_file")
-restore_release_channel() {
+restore_build_state() {
+    if [ -f crates/zed/Cargo.toml.stellaris-backup ]; then
+        mv crates/zed/Cargo.toml.stellaris-backup crates/zed/Cargo.toml
+    fi
+    rm -f crates/zed/Cargo.toml.bak
     printf '%s\n' "$original_release_channel" > "$release_channel_file"
 }
-trap restore_release_channel EXIT
+trap restore_build_state EXIT
 printf 'stable\n' > "$release_channel_file"
 
 version_info=$(rustc --version --verbose)

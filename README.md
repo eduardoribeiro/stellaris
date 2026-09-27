@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> Remove this line to confirm you've reviewed this PR before submitting.
+
 # Stellaris
 
 Stellaris is a high-performance IDE built on [Zed](https://github.com/zed-industries/zed).
